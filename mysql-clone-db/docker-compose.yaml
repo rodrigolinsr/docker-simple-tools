@@ -1,0 +1,8 @@
+version: "3.8"
+services:
+  db-tools:
+    image: ghcr.io/rodrigolinsr/mysql-clone-db
+    container_name: db-tools
+    tty: true
+    stdin_open: true
+    working_dir: /workspace
