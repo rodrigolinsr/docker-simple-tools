@@ -6,6 +6,7 @@ services:
     tty: true
     stdin_open: true
     volumes:
-      - ./db-copy.sh:/usr/local/bin/db-copy.sh
+      - ./db-copy.sh:/usr/local/bin/db-copy.sh:ro
+    working_dir: /workspace
     command: tail -f /dev/null
 
