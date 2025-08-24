@@ -4,17 +4,49 @@ echo "======================================"
 echo " 🚀 MySQL Database Copy Utility"
 echo "======================================"
 
-# Prompt for connection strings
-read -p "Enter SOURCE connection string (format: user:pass@tcp(host:port)/dbname): " SRC_CONN
-read -p "Enter DESTINATION connection string (format: user:pass@tcp(host:port)/dbname): " DEST_CONN
+# Function to parse MySQL URI
+parse_mysql_uri() {
+    local URI=$1
+    # Remove mysql:// if present
+    URI=${URI#mysql://}
 
-# Extract database names (for messages)
-SRC_DB=$(echo "$SRC_CONN" | sed -E 's|.*/([^/]+)$|\1|')
-DEST_DB=$(echo "$DEST_CONN" | sed -E 's|.*/([^/]+)$|\1|')
+    local USER_PASS_HOST_PORT_DB
+    USER_PASS_HOST_PORT_DB=$URI
+
+    # Extract user
+    USER=$(echo "$USER_PASS_HOST_PORT_DB" | cut -d: -f1)
+    # Extract password
+    PASS=$(echo "$USER_PASS_HOST_PORT_DB" | cut -d: -f2 | cut -d@ -f1)
+    # Extract host
+    HOST=$(echo "$USER_PASS_HOST_PORT_DB" | cut -d@ -f2 | cut -d: -f1)
+    # Extract port
+    PORT=$(echo "$USER_PASS_HOST_PORT_DB" | cut -d: -f3 | cut -d/ -f1)
+    # Extract database
+    DB=$(echo "$USER_PASS_HOST_PORT_DB" | cut -d/ -f2)
+}
+
+# Prompt for connection strings
+read -p "Enter SOURCE connection string (mysql://user:pass@host:port/db): " SRC_URI
+read -p "Enter DESTINATION connection string (mysql://user:pass@host:port/db): " DEST_URI
+
+# Parse source and destination
+parse_mysql_uri "$SRC_URI"
+SRC_USER=$USER
+SRC_PASS=$PASS
+SRC_HOST=$HOST
+SRC_PORT=$PORT
+SRC_DB=$DB
+
+parse_mysql_uri "$DEST_URI"
+DEST_USER=$USER
+DEST_PASS=$PASS
+DEST_HOST=$HOST
+DEST_PORT=$PORT
+DEST_DB=$DB
 
 echo ""
-echo "✅ Source: $SRC_DB"
-echo "✅ Destination: $DEST_DB"
+echo "✅ Source: $SRC_DB@$SRC_HOST:$SRC_PORT"
+echo "✅ Destination: $DEST_DB@$DEST_HOST:$DEST_PORT"
 echo ""
 
 # Confirm
@@ -26,13 +58,7 @@ fi
 
 echo ""
 echo "📦 Dumping database from source..."
-mysqldump -v -u$(echo $SRC_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\1/') \
-          -p$(echo $SRC_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\2/') \
-          -h$(echo $SRC_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\3/') \
-          -P$(echo $SRC_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\4/') \
-          $(echo $SRC_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\5/') \
-          > dump.sql
-
+mysqldump -u"$SRC_USER" -p"$SRC_PASS" -h"$SRC_HOST" -P"$SRC_PORT" "$SRC_DB" > dump.sql
 if [ $? -ne 0 ]; then
   echo "❌ Failed to dump database."
   exit 1
@@ -40,13 +66,7 @@ fi
 
 echo ""
 echo "📥 Importing dump into destination..."
-mysql -v -u$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\1/') \
-          -p$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\2/') \
-          -h$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\3/') \
-          -P$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\4/') \
-          $(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\5/') \
-          < dump.sql
-
+mysql -u"$DEST_USER" -p"$DEST_PASS" -h"$DEST_HOST" -P"$DEST_PORT" "$DEST_DB" < dump.sql
 if [ $? -ne 0 ]; then
   echo "❌ Failed to import database."
   exit 1
@@ -62,15 +82,9 @@ if [ ! -z "$COLS" ]; then
     TABLE=$(echo "$ITEM" | cut -d. -f1)
     COLUMN=$(echo "$ITEM" | cut -d. -f2)
     echo "   ➡️ Updating $TABLE.$COLUMN ..."
-    mysql -u$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\1/') \
-          -p$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\2/') \
-          -h$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\3/') \
-          -P$(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\4/') \
-          $(echo $DEST_CONN | sed -E 's/(.+):(.+)@tcp\((.+):([0-9]+)\)\/(.+)/\5/') \
-          -e "UPDATE $TABLE SET $COLUMN = ''"
+    mysql -u"$DEST_USER" -p"$DEST_PASS" -h"$DEST_HOST" -P"$DEST_PORT" "$DEST_DB" -e "UPDATE $TABLE SET $COLUMN = ''"
   done
 fi
 
 echo ""
 echo "🎉 Database copy completed successfully!"
-
