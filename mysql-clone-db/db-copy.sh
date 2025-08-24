@@ -58,7 +58,7 @@ fi
 
 echo ""
 echo "📦 Dumping database from source..."
-mysqldump -u"$SRC_USER" -p"$SRC_PASS" -h"$SRC_HOST" -P"$SRC_PORT" "$SRC_DB" > dump.sql
+mysqldump --column-statistics=0 -u"$SRC_USER" -p"$SRC_PASS" -h"$SRC_HOST" -P"$SRC_PORT" "$SRC_DB" > dump.sql
 if [ $? -ne 0 ]; then
   echo "❌ Failed to dump database."
   exit 1
